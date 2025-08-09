@@ -132,12 +132,16 @@ exports.actualizarAnuncio = async (req, res) => {
 // Obtener todos los anuncios
 exports.obtenerAnuncios = async (_req, res) => {
   try {
-    const anuncios = await Anuncio.find().sort({ creadoEn: -1 }).lean();
+    const anuncios = await Anuncio.find()
+      .sort({ verificado: -1, creadoEn: -1 }) 
+      .lean();
+
     res.json(anuncios.map(withFotoUrl));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // GET /api/anuncios/:id
 exports.obtenerAnuncioPorId = async (req, res) => {
@@ -153,13 +157,23 @@ exports.obtenerAnuncioPorId = async (req, res) => {
 // GET /api/anuncios/mio  (si lo usás) ó /api/anuncios/mis-anuncios (lista)
 exports.obtenerMiAnuncio = async (req, res) => {
   try {
-    const anuncio = await Anuncio.findOne({ userId: req.user.id }).lean(); // 👈 antes decía req.usuario
-    if (!anuncio) return res.status(404).json({ error: 'No tienes anuncio creado' });
-    res.json(withFotoUrl(anuncio));
+    const anuncio = await Anuncio.findOne({ userId: req.user.id }).lean();
+
+    if (!anuncio) {
+      return res.status(404).json({ error: 'No tienes anuncio creado' });
+    }
+
+    res.json({
+      ...withFotoUrl(anuncio),
+      verificado: anuncio.verificado // 👈 incluimos explícitamente el estado
+    });
+
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al obtener anuncio' });
   }
 };
+
 
 // GET /api/anuncios/mis-anuncios (lista del usuario autenticado)
 exports.obtenerMisAnuncios = async (req, res) => {
