@@ -24,7 +24,7 @@ const crearPreferenciaDeVerificacion = async (anuncioId, alias) => {
       failure: `https://tusitio.com/pago-fallido`,
     },
     auto_return: 'approved',
-    notification_url: 'https://fine-shoes-thank.loca.lt/api/webhook/webhook' 
+    notification_url: 'https://backend69-1.onrender.com/api/webhook/webhook' 
   };
   console.log('🔧 Preferencia a crear:', body);
 
