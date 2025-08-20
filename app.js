@@ -1,8 +1,14 @@
 // app.js
 require('dotenv').config();
 
+// 👉 resolver DNS priorizando IPv4 (evita lentitud en SRV en algunos entornos)
+try {
+  require('dns').setDefaultResultOrder('ipv4first');
+} catch {}
+
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const cron = require('node-cron');
 
 const { connect } = require('./config/db');
@@ -17,22 +23,29 @@ console.log('DB URI:', process.env.MONGODB_URI || process.env.MONGO_URI);
 
 const app = express();
 
-// Middlewares
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+/* -------------------------- Middlewares de performance -------------------------- */
+app.disable('x-powered-by');            // menos info expuesta
+app.set('etag', 'strong');              // caching condicional correcto
+app.use(compression());                 // gzip/brotli
+app.use(cors({
+  origin: true,
+  credentials: true,
+  maxAge: 86400,                        // cachea preflight 24h
+}));
+app.use(express.json({ limit: '1mb' }));                // evita payloads enormes
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Rutas
-app.use('/api/images', imagesRoutes);          // servir imágenes GridFS
+/* ------------------------------------- Rutas ----------------------------------- */
+app.use('/api/images', imagesRoutes);   // GridFS
 app.use('/api/anuncios', anunciosRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/webhook', mpRoutes);             // webhook MP (si tenés más endpoints, montalos explícitos)
+app.use('/api/webhook', mpRoutes);
 
-// ❌ Si ya usás GridFS, no sirvas /uploads ni crees la carpeta
-// app.use('/uploads', express.static('uploads'));
+// Healthcheck ultrarrápido
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// Cron: desverificar vencidos (cada minuto)
+/* --------------------- Cron: desverificar vencidos (cada minuto) ---------------- */
 cron.schedule('*/1 * * * *', async () => {
   try {
     const result = await Anuncio.updateMany(
@@ -47,17 +60,43 @@ cron.schedule('*/1 * * * *', async () => {
   }
 });
 
-// Healthcheck
-app.get('/health', (_, res) => res.json({ ok: true }));
-
-// Arranque
+/* --------------------------------- Arranque ------------------------------------ */
 (async () => {
   try {
-    await connect(); // lee MONGODB_URI || MONGO_URI adentro
+    // 1) Conectar a Mongo con pool “caliente”
+    await connect(); // lee MONGODB_URI || MONGO_URI adentro con opciones recomendadas
+
+    // 2) Warm-up: tocamos una consulta ligera para “calentar” el pool e índices
+    //    (no esperes la promesa; que ocurra en background)
+    (async () => {
+      try {
+        await Anuncio.find({}, { _id: 1 }).sort({ creadoEn: -1 }).limit(1).lean();
+      } catch (e) {
+        // sin ruido si falla en frío
+      }
+    })();
+
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, '0.0.0.0', () =>
-      console.log(`Servidor corriendo en http://localhost:${PORT}`)
-    );
+
+    // 3) Levantar HTTP después de la conexión
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Servidor corriendo en http://localhost:${PORT}`);
+
+      // 4) Warm-up HTTP local: golpeamos /health para que el runtime/jit/route cache se “active”
+      try {
+        const url = `http://127.0.0.1:${PORT}/health`;
+        // Node 18+ trae fetch global
+        fetch(url).catch(() => {});
+      } catch {}
+    });
+
+    // 5) Keep-alive suave cada 5 min para que Render/Atlas no “enfríen” el pool
+    setInterval(async () => {
+      try {
+        await Anuncio.estimatedDocumentCount(); // más liviano que countDocuments
+      } catch {}
+    }, 5 * 60 * 1000);
+
   } catch (err) {
     console.error('❌ Error al iniciar:', err.message);
     process.exit(1);
