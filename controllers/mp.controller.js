@@ -35,8 +35,8 @@ exports.recibirWebhook = async (req, res) => {
 
         const result = await Anuncio.findByIdAndUpdate(anuncioId, {
           verificado: true,
-           //verificadoHasta: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 7 días
-           verificadoHasta: new Date(Date.now() + 2 * 60 * 1000)
+           verificadoHasta: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),// 7 días
+          //  verificadoHasta: new Date(Date.now() + 2 * 60 * 1000)
         });
 
         if (result) {
