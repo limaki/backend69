@@ -30,7 +30,6 @@ async function connect() {
     maxPoolSize: 20,
     minPoolSize: 2,                // 🔥 evita el “arranque frío”
     maxIdleTimeMS: 30000,
-    keepAlive: true,
 
     // En algunos entornos acelera la resolución SRV/DNS
     family: 4,
