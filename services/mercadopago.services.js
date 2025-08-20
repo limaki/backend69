@@ -20,7 +20,7 @@ const crearPreferenciaDeVerificacion = async (anuncioId, alias) => {
       anuncioId: anuncioId,
     },
     back_urls: {
-      success: `https://crochii-upkm.vercel.app/anuncios/${anuncioId}`,
+      success: `https://blueviolet-panther-916369.hostingersite.com/verificado-exito`,
       failure: `https://tusitio.com/pago-fallido`,
     },
     auto_return: 'approved',
@@ -48,7 +48,7 @@ const procesarPagoAprobado = async (paymentId) => {
 
     await Anuncio.findByIdAndUpdate(anuncioId, {
       verificado: true,
-      verificadoHasta: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      verificadoHasta: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
     console.log(`✅ Anuncio ${anuncioId} verificado correctamente`);
